@@ -100,6 +100,11 @@ bool ShowProgress(u64 current, u64 total, const char* opstr);
 
 int ShowBrightnessConfig(int set_brightness);
 
+void addLine(const char* newText);
+void drawScreen();
+void clearScreenBuffer();
+void Debug(const char *format, ...);
+
 static inline u16 rgb888_to_rgb565(u32 rgb) {
 	u8 r, g, b;
 	r = (rgb >> 16) & 0x1F;
@@ -115,3 +120,4 @@ static inline u16 rgb888_buf_to_rgb565(u8 *rgb) {
 	b = (rgb[2] >> 3);
 	return (r << 11) | (g << 5) | b;
 }
+

@@ -69,7 +69,7 @@ static void SwitchToNTRCARD(void)
     REG_NTRCARDMCNT = NTRCARD_CR1_ENABLE;
 }
 
-static void SwitchToCTRCARD(void)
+void SwitchToCTRCARD(void)
 {
     REG_CTRCARDCNT = 0x10000000;
     REG_CARDCTL = (REG_CARDCTL & ~3) | 2;
@@ -103,6 +103,45 @@ void Cart_Init(void)
 
         REG_CTRCARDBLKCNT = 0;
     }
+}
+
+void Cart_Init_Dev(void)
+{
+    ResetCardSlot(); //Seems to reset the cart slot?
+
+    REG_CTRCARDSECCNT &= 0xFFFFFFFB;
+    // ioDelay(0x40000);
+
+    SwitchToNTRCARD();
+    // ioDelay(0x40000);
+
+    REG_NTRCARDROMCNT = 0;
+    REG_NTRCARDMCNT &= 0xFF;
+    // ioDelay(0x40000);
+
+    REG_NTRCARDMCNT |= (NTRCARD_CR1_ENABLE | NTRCARD_CR1_IRQ);
+    REG_NTRCARDROMCNT = NTRCARD_nRESET | NTRCARD_SEC_SEED;
+    while (REG_NTRCARDROMCNT & NTRCARD_BUSY);
+
+    // Reset
+    NTR_CmdReset();
+    // ioDelay(0x40000);
+    // CartID = NTR_CmdGetCartId();
+    // u32 cmd[2] = {0x9E7DF92A, 0x11ADA9FA};
+    // NTR_SendCommand(cmd, 0, 0, NULL);
+    //CartID = NTR_CmdGetCartId();
+
+    // 3ds
+    //if (CartID & 0x10000000) {
+        //u32 unknowna0_cmd[2] = { 0xA0000000, 0x00000000 };
+        //NTR_SendCommand(unknowna0_cmd, 0x4, 0, &A0_Response);
+
+        //NTR_CmdEnter16ByteMode();
+        //SwitchToCTRCARD();
+    //    ioDelay(0xF000);
+
+    //    REG_CTRCARDBLKCNT = 0;
+   // }
 }
 
 static void AES_SetKeyControl(u32 a) {

@@ -377,6 +377,7 @@
 	"HOME_MORE_MENU_SELECT_ACTION": "HOME more... menu.\nSelect action:",
 	"SD_FORMAT_MENU": "SD format menu",
 	"BONUS_DRIVE_MENU": "Bonus drive setup",
+	"DEVCART_MENU": "Dev Cartridge Menu",
 	"SWITCH_EMUNAND": "Switch EmuNAND",
 	"BUILD_SUPPORT_FILES": "Build support files",
 	"RESTORE_H_AND_S": "Restore H&S",

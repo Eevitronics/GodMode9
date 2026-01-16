@@ -182,3 +182,190 @@ void CTR_SendCommand(const u32 command[4], u32 pageSize, u32 blocks, u32 latency
     }
 #endif
 }
+
+void CTR_SendCommandWrite_CmdCE(const u32 command[4], u32 pageSize, u32 blocks, u32 latency, u32 timing, void* buffer)
+{
+#ifdef VERBOSE_COMMANDS
+    Debug("C> %08X %08X %08X %08X", command[0], command[1], command[2], command[3]);
+#endif
+
+        REG_CTRCARDCMD[0] = command[3];
+        REG_CTRCARDCMD[1] = command[2];
+        REG_CTRCARDCMD[2] = command[1];
+        REG_CTRCARDCMD[3] = command[0];
+
+    //Make sure this never happens
+    if(blocks == 0) blocks = 1;
+
+    pageSize -= pageSize & 3; // align to 4 byte
+    u32 pageParam = CTRCARD_PAGESIZE_4K;
+    u32 transferLength = 4096;
+    // make zero read and 4 byte read a little special for timing optimization(and 512 too)
+    switch(pageSize) {
+        case 0:
+            transferLength = 0;
+            pageParam = CTRCARD_PAGESIZE_0;
+            break;
+        case 4:
+            transferLength = 4;
+            pageParam = CTRCARD_PAGESIZE_4;
+            break;
+        case 64:
+            transferLength = 64;
+            pageParam = CTRCARD_PAGESIZE_64;
+            break;
+        case 512:
+            transferLength = 512;
+            pageParam = CTRCARD_PAGESIZE_512;
+            break;
+        case 1024:
+            transferLength = 1024;
+            pageParam = CTRCARD_PAGESIZE_1K;
+            break;
+        case 2048:
+            transferLength = 2048;
+            pageParam = CTRCARD_PAGESIZE_2K;
+            break;
+        case 4096:
+            transferLength = 4096;
+            pageParam = CTRCARD_PAGESIZE_4K;
+            break;
+        default:
+            break; //Defaults already set
+    }
+
+    // REG_CTRCARDBLKCNT = ((blocks - 1) & 0x1FFF) << 16;
+    REG_CTRCARDBLKCNT = (latency << 16) | (blocks -1);
+    transferLength *= blocks;
+
+    // go
+    REG_CTRCARDCNT = CTRKEY_PARAM | CTRCARD_ACTIVATE | CTRCARD_nRESET | pageParam | timing | CTRCARD_WR;
+
+
+
+    u8 * pbuf = (u8 *)buffer;
+    u32 * pbuf32 = (u32 * )buffer;
+    REG_CTRCARDFIFO = *pbuf32; //REMOVE THIS
+    bool useBuf = ( NULL != pbuf );
+    bool useBuf32 = (useBuf && (0 == (3 & ((u32)buffer))));
+
+    u32 count = 0;
+    u32 cardCtrl = REG_CTRCARDCNT;
+
+    // Debug("Here1");
+    if (useBuf32)
+    {
+        // Debug("usebuf32");
+        while( (cardCtrl & CTRCARD_BUSY) && count < transferLength)
+        {
+            //Debug("Waiting");
+            cardCtrl = REG_CTRCARDCNT;
+            if (cardCtrl & CTRCARD_DATA_READY)
+            {
+                pbuf32++;
+                // Debug("%X", REG_NTRCARDFIFO);
+                REG_CTRCARDFIFO = *pbuf32;
+                //Debug("%X", REG_NTRCARDFIFO);
+                // Debug("%08X", *pbuf32);
+                //pbuf32++;
+                count += 4;
+                // Debug("Data sent: %d", count);
+            }
+        }
+    }
+
+
+    // else if(useBuf)
+    // {
+    //     Debug("usebuf");
+    //     while( (cardCtrl & CTRCARD_BUSY) && count < transferLength)
+    //     {
+    //         cardCtrl = REG_CTRCARDCNT;
+    //         if( cardCtrl & CTRCARD_DATA_READY  ) {
+    //             u32 data = REG_CTRCARDFIFO;
+    //             pbuf[0] = (unsigned char) (data >>  0);
+    //             pbuf[1] = (unsigned char) (data >>  8);
+    //             pbuf[2] = (unsigned char) (data >> 16);
+    //             pbuf[3] = (unsigned char) (data >> 24);
+    //             pbuf += sizeof (unsigned int);
+    //             count += 4;
+    //         }
+    //     }
+    // }
+    // else
+    // {
+    //     Debug("else");
+    //     while( (cardCtrl & CTRCARD_BUSY) && count < transferLength)
+    //     {
+    //         cardCtrl = REG_CTRCARDCNT;
+    //         if( cardCtrl & CTRCARD_DATA_READY  ) {
+    //             u32 data = REG_CTRCARDFIFO;
+    //             (void)data;
+    //             count += 4;
+    //         }
+    //     }
+    // }
+   
+    // REG_CTRCARDCMD[0] = 0x00000000;
+    // REG_CTRCARDCMD[1] = 0x00000000;
+    // REG_CTRCARDCMD[2] = 0x00000000;
+    // REG_CTRCARDCMD[3] = 0xCE000000;
+    // REG_CTRCARDCNT = CTRKEY_PARAM | CTRCARD_ACTIVATE | CTRCARD_nRESET | CTRCARD_PAGESIZE_4 | timing;
+
+    // u32 data = REG_CTRCARDFIFO;
+
+    // Debug("Here2");
+
+    // Debug("CE %08X", data);
+
+    // if read is not finished, ds will not pull ROM CS to high, we pull it high manually
+    if( count == transferLength ) {
+        // MUST wait for next data ready,
+        // if ds pull ROM CS to high during 4 byte data transfer, something will mess up
+        // so we have to wait next data ready
+        // Debug("Here4");
+        do { cardCtrl = REG_CTRCARDCNT; } while(!(cardCtrl & CTRCARD_DATA_READY));
+        // and this tiny delay is necessary
+        ARM_WaitCycles(33 * 8);
+        // Debug("Here5");
+        // pull ROM CS high
+        REG_CTRCARDCNT = 0x10000000;
+        REG_CTRCARDCNT = CTRKEY_PARAM | CTRCARD_ACTIVATE | CTRCARD_nRESET;
+    }
+    // Debug("Here6");
+    // wait rom cs high
+
+    // do { cardCtrl = REG_CTRCARDCNT; } while( cardCtrl & CTRCARD_BUSY );
+
+    //lastCmd[0] = command[0];lastCmd[1] = command[1];
+    // Debug("Data write complete. %u bytes sent.", count);
+
+// #ifdef VERBOSE_COMMANDS
+//     if (!useBuf) {
+//         Debug("C< NULL");
+//     } else if (!useBuf32) {
+//         Debug("C< non32");
+//     } else {
+//         u32* p = (u32*)buffer;
+//         int transferWords = count / 4;
+//         for (int i = 0; i < transferWords && i < 4*4; i += 4) {
+//             switch (transferWords - i) {
+//             case 0:
+//                 break;
+//             case 1:
+//                 Debug("C< %08X", p[i+0]);
+//                 break;
+//             case 2:
+//                 Debug("C< %08X %08X", p[i+0], p[i+1]);
+//                 break;
+//             case 3:
+//                 Debug("C< %08X %08X %08X", p[i+0], p[i+1], p[i+2]);
+//                 break;
+//             default:
+//                 Debug("C< %08X %08X %08X %08X", p[i+0], p[i+1], p[i+2], p[i+3]);
+//                 break;
+//             }
+//         }
+//     }
+// #endif
+}
