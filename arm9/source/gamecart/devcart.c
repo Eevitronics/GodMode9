@@ -471,7 +471,10 @@ int twl_write_data(size_t nb_blocks, size_t page_size, size_t block_size, size_t
         curr_page += 1;
         pages_loaded++;
 
-        if (pages_loaded >= bytes_per_SD_read / block_size)
+        // Reload the SD buffer only once every PAGE in it has been consumed, not
+        // after a single block's worth. The old `/ block_size` reset fired after just
+        // 4 pages, re-reading the whole 512 KiB buffer every ~8 KiB written.
+        if (pages_loaded >= bytes_per_SD_read / page_size)
             pages_loaded = 0;
 
         if(curr_page % 10 == 0){

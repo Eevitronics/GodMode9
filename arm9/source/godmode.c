@@ -3135,37 +3135,37 @@ u32 GodMode(int entrypoint) {
 
 
                     // Checks to see if a TWL Development card is inserted. 
-                    // u8 cartID3 = (cartId >> 24) & 0xFF;
-                    // if(cartID3 == 0xC0 || cartID3 == 0xE0){
-                    //     Debug("TWL Flash Card");
-                    //     Debug("Spoofed ROM Maker: %s\n", ROM_Maker);
-                    //     cart_type = 3;
-                    // }else{
-                    //     if(((cartId >> 0)  & 0xFF) == 0x56){
-                    //         Debug("V2 3DS Development Cart (CARD2)");
-                    //         cart_type = 2;
-                    //     }else if(((cartId >> 0)  & 0xFF) == 0x51){
-                    //         Debug("V1 3DS Development Cart");
-                    //         cart_type = 1;
-                    //     }else if(((cartId >> 0)  & 0xFF) == 0xc2){
-                    //         //DS Card! 
-                    //         Debug("NDS Cartridge");
-                    //         ShowPrompt(false, "Error: NDS cartridges are not supported!\n \nAdditional hardware is required to write to them.\n");
-                    //         // cart_type = 3;
-                    //         ClearScreenF(true, true, COLOR_STD_BG);
-                    //         clearScreenBuffer();
-                    //         break;
-                    //     }else{
-                    //         // TODO Enable this back
-                    //         ShowPrompt(false, "Error: %s (%02X).\nThis cartridge is not yet implemented.\n", ROM_Maker, (uint8_t)((cartId >> 0)  & 0xFF) );
-                    //         // cart_type = 3;
-                    //         ClearScreenF(true, true, COLOR_STD_BG);
-                    //         clearScreenBuffer();
-                    //         break;
-                    //     }
-                    // }
+                    u8 cartID3 = (cartId >> 24) & 0xFF;
+                    if(cartID3 == 0xC0 || cartID3 == 0xE0){
+                        Debug("TWL Flash Card");
+                        Debug("Spoofed ROM Maker: %s\n", ROM_Maker);
+                        cart_type = 3;
+                    }else{
+                        if(((cartId >> 0)  & 0xFF) == 0x56){
+                            Debug("V2 3DS Development Cart (CARD2)");
+                            cart_type = 2;
+                        }else if(((cartId >> 0)  & 0xFF) == 0x51){
+                            Debug("V1 3DS Development Cart");
+                            cart_type = 1;
+                        }else if(((cartId >> 0)  & 0xFF) == 0xc2){
+                            //DS Card! 
+                            Debug("NDS Cartridge");
+                            ShowPrompt(false, "Error: NDS cartridges are not supported!\n \nAdditional hardware is required to write to them.\n");
+                            // cart_type = 3;
+                            ClearScreenF(true, true, COLOR_STD_BG);
+                            clearScreenBuffer();
+                            break;
+                        }else{
+                            // TODO Enable this back
+                            ShowPrompt(false, "Error: %s (%02X).\nThis cartridge is not yet implemented.\n", ROM_Maker, (uint8_t)((cartId >> 0)  & 0xFF) );
+                            // cart_type = 3;
+                            ClearScreenF(true, true, COLOR_STD_BG);
+                            clearScreenBuffer();
+                            break;
+                        }
+                    }
 
-                    cart_type = 2;
+                    // cart_type = 2;
                     // const char *test_message =
                     // "ALPHA BUILD v0.12\n"
                     // "------------------------------------------\n \n"
@@ -3177,7 +3177,7 @@ u32 GodMode(int entrypoint) {
                     // ShowPrompt(false, test_message);
 
                     const char *message =
-                    "Dev Cartridge Writing Utility v0.12 - by j4m13c0 \n"
+                    "Dev Cartridge Writing Utility v0.13 - by j4m13c0 \n"
                     "------------------------------------------\n \n"
                     "This utility enables writing ROM images to official\n"
                     "Nintendo dev cartridges, including TWL,\n"
@@ -3598,45 +3598,31 @@ u32 GodMode(int entrypoint) {
                                             break;
                                         }
 
-                                        uint8_t twl_Blowfish_loc_LE[2]; 
+                                        // Matches the EeviCart Reader's DSi COPTS exactly. [17][18][19] is a 24-bit
+                                        // value = twl_rom_start (header 0x92) * 0x80, spread big-endian over the three
+                                        // bytes. [13] must be 0x00 (0x01 breaks some ROMs). No dev/retail byte here —
+                                        // [19] is this field's low byte, not a flag. [193]/[196] stay factory (0xFF).
+                                        uint8_t twl_Blowfish_loc_LE[2];
                                         FileGetData(loadpath, twl_Blowfish_loc_LE, sizeof(twl_Blowfish_loc_LE), 0x92);
-                                        // Convert from little-endian to uint32_t
-                                        uint32_t twl_Blowfish_loc =
-                                            (twl_Blowfish_loc_LE[1] << 8) |
-                                            twl_Blowfish_loc_LE[0];
+                                        uint32_t twl_Blowfish_loc = (twl_Blowfish_loc_LE[1] << 8) | twl_Blowfish_loc_LE[0];
+                                        uint32_t twl_Blowfish_loc_copts = (uint32_t)twl_Blowfish_loc * 0x80;
+                                        (void)is_debug;   // retail/debug is not encoded in COPTS (per EeviCart)
 
-                                        uint8_t twl_Blowfish_loc_copts =  (twl_Blowfish_loc * 0x80000) / 0x100000;
-
-                                        Debug("twl_Blowfish_loc_copts: 0x%04X\n", twl_Blowfish_loc_copts);
-
-
-                                        copts_data[5] = 0x0F;
-                                        copts_data[6] = 0xAD;
-
-                                        copts_data[8] = 0x88; 
-                                        copts_data[9] = 0x06;
+                                        copts_data[5]  = 0x0F;
+                                        copts_data[6]  = 0xAD;
+                                        copts_data[8]  = 0x88;
+                                        copts_data[9]  = 0x06;
                                         copts_data[10] = 0x00;
-                                        copts_data[11] = 0xC2;   
-
+                                        copts_data[11] = 0xC2;
                                         copts_data[12] = 0xFE;
-                                        copts_data[13] = 0x01;
+                                        copts_data[13] = 0x00;
                                         copts_data[14] = 0xC0;
                                         copts_data[15] = 0x00;
-
                                         copts_data[16] = 0x00;
-                                        copts_data[17] = (twl_Blowfish_loc_copts >> 8) & 0xFF;
-                                        copts_data[18] = twl_Blowfish_loc_copts & 0xFF;
-
-                                        if(is_debug){
-                                            copts_data[19] = 0x00; // 00 if Dev 80 if Retail
-                                            Debug("Debug Selected");
-                                        }else{
-                                            copts_data[19] = 0x80; // 00 if Dev 80 if Retail
-                                            Debug("Retail Selected");
-                                        }
-                                        
-
-                                        copts_data[20] = 0x01;                                  
+                                        copts_data[17] = (twl_Blowfish_loc_copts >> 16) & 0xFF;
+                                        copts_data[18] = (twl_Blowfish_loc_copts >> 8)  & 0xFF;
+                                        copts_data[19] =  twl_Blowfish_loc_copts        & 0xFF;
+                                        copts_data[20] = 0x01;
                                         copts_data[21] = 0x80;
 
                                         // nb_blocks = ((rom_size_header + block_size - 1) / block_size);
