@@ -580,9 +580,9 @@ int v2_write_data(u32 start_page, u32 num_pages, void *filepath, void* dec_title
             memset(block_buffer, 0xFF, sizeof(block_buffer));
             FileGetData(filepath, block_buffer, bytes_per_SD_read, curr_offset);
 
-            // if(first_block == true){
-            //     memcpy(&block_buffer[0x1400], dec_title_key, 0x10);
-            // }
+            if(first_block == true){
+                memcpy(&block_buffer[0x1400], dec_title_key, 0x10);
+            }
         }
 
         u8* chunk = &block_buffer[(pages_loaded * 0x200)];

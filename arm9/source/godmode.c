@@ -2461,6 +2461,35 @@ u32 HomeMoreMenu(char* current_path) {
     return HomeMoreMenu(current_path);
 }
 
+// The COPTS "mode" byte is the upper byte of the ID2 the cartridge will report
+// (V1: COPTS[196] = ID2_UU, V2: COPTS[4]). Its low two bits are the key-set
+// index a game is built for: 0 retail, 3 development.
+//
+// The ROM carries the same two bits in NCSD header byte 0x1FE (bits 1-2) and,
+// in bit 0, whether the console runs the extra AP check that compares them
+// with the cartridge's ID2. When that check is on, the cart has to report what
+// the header says or the game will not run - so the header wins over the
+// mode the user asked for, and the log says so. Same logic as EeviCart's
+// copts_id2_mode_byte() in write_cartridge_twl_ctr.cpp.
+static u8 CoptsId2ModeByte(const char* rompath, bool is_debug) {
+    u8 hdr_1fe = 0;
+    FileGetData(rompath, &hdr_1fe, 1, 0x1FE);
+    const bool extra_ap_check = (hdr_1fe & 0x01) != 0;
+    const u8 header_id2 = (hdr_1fe >> 1) & 0x03;
+    u8 mode = is_debug ? 0x3 : 0x0;
+
+    Debug("NCSD 0x1FE=%02X: AP check %s, hdr ID2=%u, mode=%u (%s)",
+          hdr_1fe, extra_ap_check ? "ON" : "off", header_id2, mode, is_debug ? "dev" : "retail");
+
+    if (extra_ap_check && header_id2 != mode) {
+        Debug("AP check on: COPTS ID2 mode %u from header, not %u", header_id2, mode);
+        mode = header_id2;
+    } else if (!extra_ap_check && header_id2 != mode) {
+        Debug("Header ID2 %u != mode %u; AP check off, keeping mode", header_id2, mode);
+    }
+    return mode;
+}
+
 u32 GodMode(int entrypoint) {
     const u32 quick_stp = (MAIN_SCREEN == TOP_SCREEN) ? 20 : 19;
     u32 exit_mode = GODMODE_EXIT_POWEROFF;
@@ -3167,7 +3196,7 @@ u32 GodMode(int entrypoint) {
 
                     // cart_type = 2;
                     // const char *test_message =
-                    // "ALPHA BUILD v0.12\n"
+                    // "ALPHA BUILD v0.14\n"
                     // "------------------------------------------\n \n"
 
                     // "This build was given to:\n"
@@ -3177,7 +3206,7 @@ u32 GodMode(int entrypoint) {
                     // ShowPrompt(false, test_message);
 
                     const char *message =
-                    "Dev Cartridge Writing Utility v0.13 - by j4m13c0 \n"
+                    "Dev Cartridge Writing Utility v0.14 - by j4m13c0 \n"
                     "------------------------------------------\n \n"
                     "This utility enables writing ROM images to official\n"
                     "Nintendo dev cartridges, including TWL,\n"
@@ -3982,11 +4011,8 @@ u32 GodMode(int entrypoint) {
 
                                         Debug("Overriding copts_data[4]");
 
-                                        if(is_debug){
-                                            copts_data[4] = 0x3; //0x3 is dev mode, 0x0 is retail mode
-                                        }else{
-                                            copts_data[4] = 0x0; //0x3 is dev mode, 0x0 is retail mode
-                                        }
+                                        // ID2 mode byte: 0x3 dev, 0x0 retail - unless the ROM header's AP check says otherwise.
+                                        copts_data[4] = CoptsId2ModeByte(loadpath, is_debug);
 
                                         if(ShowPrompt(true,"Warning: This will erase all data on the cartridge.\nThis action is irreversible.\n\nDo you want to continue?")? 1 : 0){
                                             //Continue
@@ -4293,11 +4319,8 @@ u32 GodMode(int entrypoint) {
                                             break;
                                         }
 
-                                        if(is_debug){
-                                            copts_data[196] = 0x3; //0x3 is dev mode, 0x0 is retail mode
-                                        }else{
-                                            copts_data[196] = 0x0; //0x3 is dev mode, 0x0 is retail mode
-                                        }
+                                        // ID2_UU: 0x3 dev, 0x0 retail - unless the ROM header's AP check says otherwise.
+                                        copts_data[196] = CoptsId2ModeByte(loadpath, is_debug);
 
                                         u8 return_data = v1_erase(num_of_blocks);
                                         if(return_data == 1){
